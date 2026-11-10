@@ -5,14 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="theme-color" content="#082730">
 <meta name="color-scheme" content="dark">
-<title>Lily Leap</title>
+<title>Frog &amp; Fang</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon-180.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Lily Leap">
+<meta name="apple-mobile-web-app-title" content="Frog &amp; Fang">
 <meta name="description" content="Hop across lily pads, catch flies and stay one leap ahead of the pond snake.">
 <style>
 /* Fonts are bundled with the app (SIL Open Font License, see fonts/OFL-*.txt) so the game works offline. */
@@ -207,7 +207,7 @@ kbd {
 
   <div class="overlay" id="menu">
     <div class="card">
-      <h1>Lily<br>Leap</h1>
+      <h1>Frog<br>&amp; Fang</h1>
       <p id="tagline"></p>
       <div class="seg" role="radiogroup" aria-label="Game mode">
         <button type="button" role="radio" data-m="classic" aria-checked="true">Classic</button>
@@ -269,6 +269,7 @@ kbd {
   };
 
   // ---------- storage (best score, sound) ----------
+  // Storage keys use the game's original name ("lilyleap.*") so existing saved scores and settings carry over.
   function load(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } }
   function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
   const DIFFS = {
@@ -1236,8 +1237,8 @@ kbd {
       const Cap = window.Capacitor;
       if (!Cap || !Cap.isNativePlatform || !Cap.isNativePlatform()) return null;
       const platform = Cap.getPlatform();
-      const lb = (window.LILY_LEAP_LEADERBOARDS || {})[platform] || {};
-      const ach = (window.LILY_LEAP_ACHIEVEMENTS || {})[platform] || {};
+      const lb = (window.FROG_FANG_LEADERBOARDS || {})[platform] || {};
+      const ach = (window.FROG_FANG_ACHIEVEMENTS || {})[platform] || {};
       const hasLb = Object.values(lb).some(Boolean), hasAch = Object.values(ach).some(Boolean);
       if (!hasLb && !hasAch) return null;
       const PG = (Cap.registerPlugin && Cap.registerPlugin('PlayGames')) || (Cap.Plugins && Cap.Plugins.PlayGames);

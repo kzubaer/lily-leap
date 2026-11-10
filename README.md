@@ -1,6 +1,8 @@
-# Lily Leap
+# Frog & Fang
 
 A frog-and-snake pond game: hop across lily pads, catch flies with your tongue, and stay one leap ahead of the snake.
+
+(Formerly called Lily Leap.)
 
 **Play:** https://kzubaer.github.io/lily-leap/
 
