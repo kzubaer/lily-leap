@@ -1,0 +1,1226 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#082730">
+<meta name="color-scheme" content="dark">
+<title>Lily Leap</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Lily Leap">
+<meta name="description" content="Hop across lily pads, catch flies and stay one leap ahead of the pond snake.">
+<style>
+/* Fonts are bundled with the app (SIL Open Font License, see fonts/OFL-*.txt) so the game works offline. */
+@font-face { font-family: "Lilita One"; src: url("fonts/lilita-one-latin-400-normal.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Nunito"; src: url("fonts/nunito-latin-600-normal.woff2") format("woff2"); font-weight: 600; font-display: swap; }
+@font-face { font-family: "Nunito"; src: url("fonts/nunito-latin-800-normal.woff2") format("woff2"); font-weight: 800; font-display: swap; }
+*, *::before, *::after { box-sizing: border-box; }
+html {
+  background: #082730;
+  /* keep the game clear of the notch / status bar and the home indicator */
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  -webkit-text-size-adjust: 100%;
+}
+body { margin: 0; font-size: 14px; }
+/* Layout: one full-screen canvas pond; HUD floats top, menus are centered cards over the water. Single dusk-pond look by choice. */
+:root {
+  --water: #0f3b46;
+  --water-deep: #082730;
+  --pad: #5fae4e;
+  --frog: #9be15d;
+  --snake: #e0a13a;
+  --ink: #f4fbe9;
+  --ink-dim: #b9d6c9;
+  --card: rgba(6, 30, 36, 0.86);
+  --danger: #ff6b5b;
+  --display: "Lilita One", "Arial Rounded MT Bold", system-ui, sans-serif;
+  --body: "Nunito", system-ui, -apple-system, sans-serif;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+[hidden] { display: none !important; }
+body {
+  background: var(--water-deep);
+  color: var(--ink);
+  font-family: var(--body);
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+#app { position: relative; width: 100%; height: 100%; }
+canvas { display: block; width: 100%; height: 100%; }
+.hud {
+  position: absolute; top: 0; left: 0; right: 0;
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  padding-top: 12px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  pointer-events: none;
+}
+.stat { display: flex; flex-direction: column; line-height: 1; }
+.stat small { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-dim); font-weight: 800; }
+.lives { font-size: 18px; line-height: 1; margin-top: 4px; letter-spacing: 2px; color: var(--danger); }
+.lives .empty { color: rgba(244, 251, 233, .22); }
+.stat b { font-family: var(--display); font-size: 32px; font-weight: 400; font-variant-numeric: tabular-nums; }
+.stat.right { align-items: flex-end; }
+#pauseBtn {
+  pointer-events: auto;
+  width: 44px; height: 44px; border-radius: 50%;
+  border: 2px solid rgba(244, 251, 233, .35); background: var(--card); color: var(--ink);
+  font-size: 16px; font-weight: 800; cursor: pointer;
+}
+.overlay {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 24px;
+}
+.card {
+  width: 100%; max-width: 360px;
+  background: var(--card);
+  border: 2px solid rgba(155, 225, 93, .35);
+  border-radius: 24px;
+  padding: 28px 24px;
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+  text-align: center;
+  backdrop-filter: blur(6px);
+}
+.card h1, .card h2 {
+  margin: 0; font-family: var(--display); font-weight: 400;
+  text-wrap: balance; letter-spacing: .01em;
+}
+.card h1 { font-size: 46px; line-height: .95; color: var(--frog); text-shadow: 0 4px 0 #2d6a2a; }
+.card h2 { font-size: 40px; color: var(--danger); }
+.card p { margin: 0; color: var(--ink-dim); font-size: 15px; line-height: 1.45; max-width: 30ch; }
+.rules { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; text-align: left; font-size: 15px; }
+.rules li { display: grid; grid-template-columns: 28px 1fr; align-items: center; gap: 8px; }
+.dot { width: 22px; height: 22px; border-radius: 50%; display: inline-block; }
+.dot.pad { background: var(--pad); }
+.dot.fly { background: #2a2a2a; border: 3px solid #cfe9ff; }
+.dot.snake { background: var(--snake); }
+.big { font-family: var(--display); font-size: 64px; line-height: 1; font-variant-numeric: tabular-nums; }
+.btn {
+  font-family: var(--display); font-size: 24px; letter-spacing: .03em;
+  color: #123414; background: var(--frog);
+  border: none; border-radius: 999px; padding: 14px 40px; cursor: pointer;
+  box-shadow: 0 5px 0 #3f8a2c;
+}
+.btn:active { transform: translateY(3px); box-shadow: 0 2px 0 #3f8a2c; }
+.diff, .seg { display: flex; gap: 4px; padding: 4px; border-radius: 999px; background: rgba(244, 251, 233, .08); }
+.diff button, .seg button {
+  font: 800 14px var(--body); color: var(--ink-dim); background: none; border: none;
+  border-radius: 999px; padding: 8px 16px; min-height: 36px; cursor: pointer;
+}
+.diff button[aria-checked="true"], .seg button[aria-checked="true"] { background: var(--ink); color: #123414; }
+.diff button:focus-visible, .seg button:focus-visible { outline: 2px solid var(--frog); outline-offset: 2px; }
+.card p.diff-note { font-size: 13px; margin-top: -6px; }
+.kbd-hint { display: none; }
+@media (hover: hover) and (pointer: fine) { .kbd-hint { display: block; } }
+kbd {
+  font: 800 12px var(--body); color: var(--ink); background: rgba(244, 251, 233, .12);
+  border: 1px solid rgba(244, 251, 233, .25); border-bottom-width: 2px; border-radius: 5px; padding: 1px 5px;
+}
+.btn:focus-visible, #pauseBtn:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+.gs-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 18px; }
+.ghost.lb-btn { color: var(--frog); text-decoration: underline; text-underline-offset: 3px; }
+.toast {
+  position: absolute; left: 50%; top: 112px; transform: translateX(-50%);
+  pointer-events: none; /* never blocks taps on the pond */
+  max-width: calc(100% - 32px); padding: 10px 16px; border-radius: 12px;
+  background: var(--card); color: var(--ink); border: 1px solid rgba(244, 251, 233, .25);
+  font-size: 14px; text-align: center; z-index: 5;
+}
+.ghost { background: none; border: none; color: var(--ink-dim); font: 800 14px var(--body); cursor: pointer; padding: 6px; }
+/* menus: centered when they fit, scrollable when the screen is too short */
+.overlay { overflow-y: auto; touch-action: pan-y; align-items: flex-start; }
+.card { margin-block: auto; }
+@media (max-height: 700px) {
+  .card { padding: 18px 20px; gap: 10px; }
+  .card h1 { font-size: 40px; }
+  .card h2 { font-size: 32px; }
+  .card p, .rules { font-size: 14px; }
+  .rules { gap: 6px; }
+  .big { font-size: 52px; }
+  .btn { padding: 11px 34px; font-size: 22px; }
+}
+/* short, wide screens (phones in landscape): title and button left, rules right */
+@media (max-height: 520px) and (min-width: 560px) {
+  #menu .card { max-width: 680px; display: grid; grid-template-columns: 1fr 1.25fr; column-gap: 24px; row-gap: 10px; align-items: center; justify-items: center; }
+  #menu .card > .rules { grid-column: 2; grid-row: 1 / span 9; }
+  #menu .card > :not(.rules) { grid-column: 1; }
+}
+/* very short screens (small phones, small landscape) */
+@media (max-height: 600px) {
+  .overlay { padding-block: 10px; }
+  .card { padding: 14px 18px; gap: 8px; border-radius: 20px; }
+  .card h1 { font-size: 34px; text-shadow: 0 3px 0 #2d6a2a; }
+  .rules { gap: 4px; font-size: 13.5px; }
+  .rules li { grid-template-columns: 22px 1fr; gap: 6px; }
+  .dot { width: 18px; height: 18px; }
+  .btn { padding: 9px 30px; font-size: 20px; }
+}
+@media (max-height: 600px) {
+  #menu .card > p:first-of-type, #menu .card > .diff-note { display: none; }
+}
+@media (max-height: 380px) and (min-width: 560px) {
+  #menu .card { grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.4fr); column-gap: 16px; row-gap: 6px; padding-block: 10px; }
+  .gs-links { gap: 0 12px; flex-wrap: nowrap; }
+  .gs-links .ghost { font-size: 13px; padding: 4px 2px; white-space: nowrap; }
+}
+@media (max-height: 380px) {
+  .big { font-size: 40px; }
+  #over .card { gap: 6px; }
+  #menu .card > p:not(#menuBest) { display: none; }
+  .card h1 { font-size: 30px; }
+  .rules { font-size: 13px; line-height: 1.3; }
+}
+@media (prefers-reduced-motion: reduce) { .btn:active { transform: none; } }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div class="toast" id="toast" role="status" hidden></div>
+  <canvas id="c"></canvas>
+  <div class="hud" id="hud" hidden>
+    <div class="stat"><small>Flies</small><b id="score">0</b><span class="lives" id="lives" aria-label="Lives"></span></div>
+    <button id="pauseBtn" aria-label="Pause">II</button>
+    <div class="stat right"><small>Best</small><b id="best">0</b></div>
+  </div>
+
+  <div class="overlay" id="menu">
+    <div class="card">
+      <h1>Lily<br>Leap</h1>
+      <p id="tagline"></p>
+      <div class="seg" role="radiogroup" aria-label="Game mode">
+        <button type="button" role="radio" data-m="classic" aria-checked="true">Classic</button>
+        <button type="button" role="radio" data-m="sinking" aria-checked="false">Sinking pads</button>
+      </div>
+      <ul class="rules">
+        <li><span class="dot pad"></span><span>Tap a nearby lily pad to hop</span></li>
+        <li id="ruleSink"><span class="dot" style="background:#b5a945"></span><span>Shaking yellow pads are sinking. Hop off before they go under, and don't stay on one pad too long</span></li>
+        <li><span class="dot" style="background:conic-gradient(#ffd23f 0 25%,#5ec8ff 0 50%,#b6f0ff 0 75%,#ff6f91 0)"></span><span>Land on a power-up: speed boost, shield, snake freeze or long tongue</span></li>
+        <li><span class="dot fly"></span><span>Tap a fly to catch it with your tongue</span></li>
+        <li><span class="dot snake"></span><span>The snake gets faster and longer as you eat</span></li>
+        <li><span class="dot" style="color:var(--danger);font-size:20px;line-height:22px;text-align:center">&#9829;</span><span>Every 15 flies earns an extra life</span></li>
+      </ul>
+      <div class="diff" role="radiogroup" aria-label="Difficulty">
+        <button type="button" role="radio" data-d="easy" aria-checked="false">Easy</button>
+        <button type="button" role="radio" data-d="normal" aria-checked="true">Normal</button>
+        <button type="button" role="radio" data-d="hard" aria-checked="false">Hard</button>
+      </div>
+      <p class="diff-note" id="diffNote"></p>
+      <button class="btn" id="playBtn">Play</button>
+      <div class="gs-links" data-gs hidden><button class="ghost lb-btn" data-lb hidden>Leaderboard</button><button class="ghost lb-btn" data-ach hidden>Achievements</button></div>
+      <p class="kbd-hint"><kbd>&larr;</kbd><kbd>&uarr;</kbd><kbd>&rarr;</kbd><kbd>&darr;</kbd> or <kbd>WASD</kbd> hop &middot; <kbd>Space</kbd> catch &middot; <kbd>P</kbd> pause</p>
+      <p id="menuBest"></p>
+    </div>
+  </div>
+
+  <div class="overlay" id="paused" hidden>
+    <div class="card">
+      <h2 style="color:var(--ink)">Paused</h2>
+      <button class="btn" id="resumeBtn">Resume</button>
+      <button class="ghost" id="quitBtn">Back to menu</button>
+    </div>
+  </div>
+
+  <div class="overlay" id="over" hidden>
+    <div class="card">
+      <h2 id="overTitle">Gulp!</h2>
+      <p id="overMsg">The snake took your last life.</p>
+      <div class="big" id="finalScore">0</div>
+      <p id="finalNote">flies eaten</p>
+      <button class="btn" id="againBtn">Hop again</button>
+      <div class="gs-links" data-gs hidden><button class="ghost lb-btn" data-lb hidden>Leaderboard</button><button class="ghost lb-btn" data-ach hidden>Achievements</button></div>
+      <button class="ghost" id="soundBtn">Sound: on</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const cv = document.getElementById('c');
+  const ctx = cv.getContext('2d');
+  const $ = id => document.getElementById(id);
+  const ui = {
+    hud: $('hud'), score: $('score'), best: $('best'), menu: $('menu'), over: $('over'),
+    paused: $('paused'), final: $('finalScore'), finalNote: $('finalNote'), menuBest: $('menuBest'),
+    sound: $('soundBtn'), lives: $('lives')
+  };
+
+  // ---------- storage (best score, sound) ----------
+  function load(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } }
+  function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  const DIFFS = {
+    easy:   { label: 'Easy',   lives: 5, snake: 0.75, ramp: 0.6, sink: 0.6, warn: 1.4,  pu: 0.75, note: '5 lives, slower snake' },
+    normal: { label: 'Normal', lives: 3, snake: 1,    ramp: 1,   sink: 1,   warn: 1,    pu: 1,    note: '3 lives, the standard game' },
+    hard:   { label: 'Hard',   lives: 2, snake: 1.2,  ramp: 1.3, sink: 1.4, warn: 0.75, pu: 1.3,  note: '2 lives, faster snake' },
+  };
+  // Mode the game opens in when the player hasn't chosen one yet.
+  const DEFAULT_MODE = 'classic';
+  // Carry over best scores and settings saved by the earlier, separate browser versions of the game.
+  try {
+    const oldPrefix = { classic: 'lilyleap', sinking: 'sinkingleap' };
+    for (const m in oldPrefix) for (const d of ['easy', 'normal', 'hard']) {
+      const newKey = 'lilyleap.best.' + m + '.' + d;
+      const oldVal = localStorage.getItem(oldPrefix[m] + '.best' + (d === 'normal' ? '' : '.' + d));
+      if (localStorage.getItem(newKey) === null && oldVal !== null) localStorage.setItem(newKey, oldVal);
+    }
+    for (const k of ['diff', 'sound']) {
+      const oldVal = localStorage.getItem('sinkingleap.' + k);
+      if (localStorage.getItem('lilyleap.' + k) === null && oldVal !== null) localStorage.setItem('lilyleap.' + k, oldVal);
+    }
+  } catch (e) {}
+  const MODES = {
+    classic: { label: 'Classic', tagline: 'Eat flies and stay one hop ahead of the pond snake.' },
+    sinking: { label: 'Sinking pads', tagline: 'Eat flies, dodge the snake, and keep off the pads that are going under.' },
+  };
+  let mode = load('lilyleap.mode', DEFAULT_MODE);
+  if (!MODES[mode]) mode = 'classic';
+  let diff = load('lilyleap.diff', 'normal');
+  if (!DIFFS[diff]) diff = 'normal';
+  const D = () => DIFFS[diff];
+  const bestKey = d => 'lilyleap.best.' + mode + '.' + d;
+  let best = load(bestKey(diff), 0);
+  let soundOn = load('lilyleap.sound', true);
+
+  // ---------- audio ----------
+  let actx = null;
+  function beep(freq, dur, type = 'sine', vol = 0.15, slide = 0) {
+    if (!soundOn) return;
+    try {
+      actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+      const t = actx.currentTime;
+      const o = actx.createOscillator(), g = actx.createGain();
+      o.type = type; o.frequency.setValueAtTime(freq, t);
+      if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(40, freq + slide), t + dur);
+      g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      o.connect(g).connect(actx.destination); o.start(t); o.stop(t + dur);
+    } catch (e) {}
+  }
+  const sfx = {
+    splash: () => { beep(180, 0.35, 'sine', 0.16, -120); setTimeout(() => beep(700, 0.15, 'triangle', 0.05, -400), 40); },
+    power: () => [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => beep(f, 0.1, 'triangle', 0.1), i * 55)),
+    block: () => beep(1200, 0.25, 'sine', 0.12, -700),
+    hop: () => beep(300, 0.12, 'triangle', 0.12, 300),
+    lick: () => beep(900, 0.08, 'square', 0.05, -500),
+    gulp: () => { beep(520, 0.1, 'triangle', 0.14, 400); setTimeout(() => beep(880, 0.12, 'triangle', 0.1), 70); },
+    gold: () => [660, 880, 1100].forEach((f, i) => setTimeout(() => beep(f, 0.12, 'triangle', 0.1), i * 70)),
+    miss: () => beep(160, 0.12, 'sawtooth', 0.05),
+    hurt: () => { beep(300, 0.18, 'square', 0.08, -150); setTimeout(() => beep(220, 0.2, 'square', 0.06, -100), 90); },
+    over: () => beep(400, 0.6, 'sawtooth', 0.12, -330),
+  };
+
+  // ---------- sizing ----------
+  let W = 0, H = 0, DPR = 1, U = 1; // U = base unit
+  let resizeT = null, resizeFrom = null;
+  function resize() {
+    const oldW = W, oldH = H;
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    const r = cv.getBoundingClientRect();
+    W = r.width; H = r.height;
+    cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    U = Math.max(0.7, Math.min(1.4, Math.min(W, H) / 420));
+    if (state === 'menu') reset();
+    else if (oldW && (Math.abs(oldW - W) > 1 || Math.abs(oldH - H) > 1)) {
+      // screen changed mid-game (rotation, window resize): pause, then refit the pond once resizing settles
+      pause();
+      if (!resizeFrom) resizeFrom = { w: oldW, h: oldH };
+      clearTimeout(resizeT);
+      resizeT = setTimeout(refitPond, 150);
+    }
+  }
+
+  function refitPond() {
+    if (!resizeFrom || state === 'menu') { resizeFrom = null; return; }
+    const sx = W / resizeFrom.w, sy = H / resizeFrom.h;
+    resizeFrom = null;
+    const fx = frog.x * sx, fy = frog.y * sy;
+    buildPond();
+    // put the frog on the pad nearest to where it was, relative to the screen
+    let bi = 0, bd = Infinity;
+    pads.forEach((p, i) => { const d = Math.hypot(p.x - fx, p.y - fy); if (d < bd) { bd = d; bi = i; } });
+    Object.assign(frog, { pad: bi, to: null, from: null, x: pads[bi].x, y: pads[bi].y, tongue: null, stand: 0 });
+    snake.trail.forEach(q => { q.x *= sx; q.y *= sy; });
+    snake.x = snake.trail[0].x; snake.y = snake.trail[0].y;
+    if (dist(snake, frog) < 160 * U) { snake.retreat = 1.5; snake.stun = 1.5; frog.invuln = Math.max(frog.invuln, 2); }
+    flies.forEach(f => { f.ax = Math.min(W - 30, Math.max(30, f.ax * sx)); f.ay = Math.min(H - 40, Math.max(TOP() + 20, f.ay * sy)); });
+    pickup = null; ripples = []; tapRing = null;
+  }
+
+  // ---------- world ----------
+  let state = 'menu';
+  let pads = [], flies = [], ripples = [], particles = [], floaters = [];
+  const MAX_LIVES = 5;
+  let sinkTimer = 4;
+  const solid = p => p.state === 'up' || p.state === 'warn';
+  let lives = 3, nextBonus = 15;
+  let frog, snake, score, time, flySpawn, shake, tapRing;
+  const TOP = () => 76; // HUD space
+
+  function rand(a, b) { return a + Math.random() * (b - a); }
+  function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
+
+  function buildPond() {
+    // jittered grid so pads cover the whole pond evenly
+    pads = [];
+    const R = 34 * U, cell = R * 3;
+    const top = TOP() + R * 0.6, usableH = H - top - R * 0.8;
+    const cols = Math.max(2, Math.floor(W / cell)), rows = Math.max(3, Math.floor(usableH / cell));
+    const cw = W / cols, ch = usableH / rows;
+    const startCol = Math.floor(cols / 2), startRow = rows - 1;
+    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+      const isStart = r === startRow && c === startCol;
+      if (!isStart && Math.random() < 0.18) continue;
+      const p = { x: cw * (c + 0.5) + rand(-0.18, 0.18) * cw, y: top + ch * (r + 0.5) + rand(-0.18, 0.18) * ch,
+                  r: R * rand(0.9, 1.08), rot: rand(0, 6.28), bob: rand(0, 6.28) };
+      if (isStart) pads.unshift(p); else pads.push(p);
+    }
+    const hop = baseHop();
+    pads = pads.filter((p, i) => i === 0 || pads.some((q, j) => j !== i && dist(p, q) <= hop));
+    pads.forEach(p => { p.state = 'up'; p.st = 0; p.s = 1; });
+    sinkTimer = 4;
+  }
+  const baseHop = () => 34 * U * 5.2;
+  const hopRange = () => baseHop() * (powers.speed > 0 ? 1.35 : 1);
+  const tongueRange = () => 34 * U * 4.2 * (powers.tongue > 0 ? 1.8 : 1);
+
+  // ---------- power-ups ----------
+  const POWER = {
+    speed:  { color: '#ffd23f', time: 8,  label: 'Speed boost!' },
+    shield: { color: '#5ec8ff', time: 12, label: 'Shield!' },
+    freeze: { color: '#b6f0ff', time: 4,  label: 'Snake frozen!' },
+    tongue: { color: '#ff6f91', time: 10, label: 'Long tongue!' },
+  };
+  let powers = { speed: 0, shield: 0, freeze: 0, tongue: 0 };
+  let pickup = null, puTimer = 6;
+
+  function updatePowers(dt) {
+    for (const k in powers) powers[k] = Math.max(0, powers[k] - dt);
+    puTimer -= dt;
+    if (!pickup && puTimer <= 0) {
+      const options = pads.map((p, i) => i).filter(i => pads[i].state === 'up' && i !== frog.pad && i !== frog.to && dist(pads[i], frog) > pads[i].r * 2);
+      if (options.length) {
+        const types = Object.keys(POWER);
+        pickup = { pad: options[Math.floor(Math.random() * options.length)], type: types[Math.floor(Math.random() * types.length)], life: 9 };
+      }
+      puTimer = rand(7, 12) * D().pu;
+    }
+    if (pickup) {
+      pickup.life -= dt;
+      if (pickup.life <= 0 || !solid(pads[pickup.pad])) pickup = null;
+    }
+    // speed trail
+    if (powers.speed > 0 && frog.to !== null && Math.random() < dt * 40)
+      particles.push({ x: frog.x + rand(-6, 6), y: frog.y + rand(-6, 6), vx: 0, vy: -20, t: 0, life: 0.35, speed: true });
+  }
+  function collectPowerUp() {
+    if (!pickup || pickup.pad !== frog.pad) return;
+    const type = pickup.type, P = POWER[type];
+    powers[type] = P.time;
+    achOnPower(type);
+    if (type === 'freeze') snake.lunge = 0;
+    pickup = null;
+    sfx.power();
+    floaters.push({ x: frog.x, y: frog.y - 34 * U, t: 0, text: P.label, color: P.color });
+    for (let k = 0; k < 16; k++) { const a = k / 16 * Math.PI * 2; particles.push({ x: frog.x, y: frog.y, vx: Math.cos(a) * 140, vy: Math.sin(a) * 140 - 60, t: 0, life: 0.5, color: P.color }); }
+  }
+  // the shield absorbs one hit (bite or splash)
+  function useShield() {
+    if (powers.shield <= 0) return false;
+    powers.shield = 0;
+    achUnlock('shield_block');
+    sfx.block();
+    floaters.push({ x: frog.x, y: frog.y - 30 * U, t: 0, text: 'Blocked!', color: POWER.shield.color });
+    for (let k = 0; k < 14; k++) { const a = k / 14 * Math.PI * 2; particles.push({ x: frog.x, y: frog.y, vx: Math.cos(a) * 120, vy: Math.sin(a) * 120, t: 0, life: 0.45, color: POWER.shield.color }); }
+    return true;
+  }
+  // canvas icon used for pickups and the active-power tray
+  function drawBadge(type, x, y, r, alpha = 1) {
+    const c = POWER[type].color;
+    ctx.save(); ctx.globalAlpha = alpha; ctx.translate(x, y);
+    ctx.fillStyle = c; ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(8,39,48,0.9)'; ctx.fillStyle = 'rgba(8,39,48,0.9)'; ctx.lineWidth = Math.max(2, r * 0.16); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath();
+    if (type === 'speed') {
+      ctx.moveTo(r * 0.15, -r * 0.65); ctx.lineTo(-r * 0.35, r * 0.08); ctx.lineTo(r * 0.05, r * 0.08); ctx.lineTo(-r * 0.15, r * 0.65); ctx.lineTo(r * 0.35, -r * 0.08); ctx.lineTo(-r * 0.05, -r * 0.08); ctx.closePath(); ctx.fill();
+    } else if (type === 'shield') {
+      ctx.moveTo(0, -r * 0.6); ctx.lineTo(r * 0.5, -r * 0.38); ctx.quadraticCurveTo(r * 0.45, r * 0.35, 0, r * 0.62); ctx.quadraticCurveTo(-r * 0.45, r * 0.35, -r * 0.5, -r * 0.38); ctx.closePath(); ctx.stroke();
+    } else if (type === 'freeze') {
+      for (let k = 0; k < 3; k++) { const a = k * Math.PI / 3 + Math.PI / 2; ctx.moveTo(Math.cos(a) * r * 0.6, Math.sin(a) * r * 0.6); ctx.lineTo(-Math.cos(a) * r * 0.6, -Math.sin(a) * r * 0.6); }
+      ctx.stroke();
+    } else {
+      ctx.moveTo(-r * 0.5, r * 0.3); ctx.quadraticCurveTo(-r * 0.1, -r * 0.5, r * 0.3, -r * 0.2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(r * 0.35, -r * 0.2, r * 0.2, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function reset() {
+    buildPond();
+    const p0 = pads[0];
+    frog = { x: p0.x, y: p0.y, pad: 0, from: null, to: null, t: 0, dur: 0.34, face: -Math.PI / 2, tongue: null, blink: 0, squash: 0 };
+    const start = { x: W / 2, y: TOP() - 40 };
+    snake = { x: start.x, y: start.y, a: Math.PI / 2, speed: 62 * U, turn: 2.0, len: 16, trail: [], wiggle: 0, flick: 0, lunge: 0 };
+    for (let i = 0; i < 400; i++) snake.trail.push({ x: start.x, y: start.y - i * 2 });
+    flies = []; ripples = []; particles = []; floaters = [];
+    score = 0; lives = D().lives; nextBonus = 15; time = 0; flySpawn = 0.6; shake = 0; tapRing = null;
+    powers = { speed: 0, shield: 0, freeze: 0, tongue: 0 }; pickup = null; puTimer = 6; queued = null; gameHurt = false;
+    frog.invuln = 0; frog.stand = 0; renderLives();
+    ui.score.textContent = '0';
+    ui.best.textContent = best;
+  }
+
+  function spawnFly() {
+    const golden = score > 2 && Math.random() < 0.12;
+    for (let i = 0; i < 30; i++) {
+      const x = rand(40, W - 40), y = rand(TOP() + 30, H - 50);
+      if (Math.hypot(x - frog.x, y - frog.y) < 60 * U) continue;
+      flies.push({ ax: x, ay: y, x, y, t: rand(0, 10), life: golden ? 6 : rand(8, 11), golden, sp: rand(0.8, 1.4), dead: false });
+      return;
+    }
+  }
+
+  // ---------- input ----------
+  function onTap(e) {
+    if (state !== 'play') return;
+    const r = cv.getBoundingClientRect();
+    const x = e.clientX - r.left, y = e.clientY - r.top;
+    const pt = { x, y };
+
+    // fly first (generous hit area for fingers)
+    let bestFly = null, bd = 42 * U;
+    for (const f of flies) { if (f.dead) continue; const d = dist(f, pt); if (d < bd) { bd = d; bestFly = f; } }
+    if (bestFly) {
+      if (dist(bestFly, frog) <= tongueRange() && !frog.tongue) {
+        frog.tongue = { fly: bestFly, t: 0, tx: bestFly.x, ty: bestFly.y };
+        frog.face = Math.atan2(bestFly.y - frog.y, bestFly.x - frog.x);
+        sfx.lick();
+      } else {
+        tapRing = { x: bestFly.x, y: bestFly.y, t: 0, bad: true }; sfx.miss();
+      }
+      return;
+    }
+    // pad
+    let pi = -1, pd = Infinity;
+    pads.forEach((p, i) => { if (!solid(p)) return; const d = dist(p, pt); if (d < p.r * 1.35 && d < pd) { pd = d; pi = i; } });
+    if (pi < 0 || frog.to !== null) return;
+    if (pi === frog.pad) return;
+    const p = pads[pi];
+    if (dist(p, frog) > hopRange()) { tapRing = { x: p.x, y: p.y, t: 0, bad: true }; sfx.miss(); return; }
+    hopTo(pi);
+  }
+
+  function hopTo(pi) {
+    const p = pads[pi];
+    frog.from = { x: frog.x, y: frog.y }; frog.to = pi; frog.t = 0; frog.dur = powers.speed > 0 ? 0.2 : 0.34;
+    frog.face = Math.atan2(p.y - frog.y, p.x - frog.x);
+    frog.tongue = null;
+    tapRing = { x: p.x, y: p.y, t: 0, bad: false };
+    sfx.hop();
+  }
+
+  // ---------- keyboard ----------
+  let usingKeys = false, queued = null;
+  const padOK = p => solid(p);
+  // hop to the best reachable pad within about 55 degrees of the pressed direction, favouring close and straight
+  function hopDir(dx, dy) {
+    if (state !== 'play' || frog.to !== null) return;
+    const want = Math.atan2(dy, dx);
+    let bi = -1, bs = Infinity;
+    pads.forEach((p, i) => {
+      if (i === frog.pad || !padOK(p)) return;
+      const d = dist(p, frog);
+      if (d > hopRange() || d < 1) return;
+      let da = Math.abs(Math.atan2(p.y - frog.y, p.x - frog.x) - want);
+      if (da > Math.PI) da = Math.PI * 2 - da;
+      if (da > 0.95) return;
+      const sc = d * (1 + da * 1.6);
+      if (sc < bs) { bs = sc; bi = i; }
+    });
+    if (bi < 0) { sfx.miss(); tapRing = { x: frog.x + dx * 40 * U, y: frog.y + dy * 40 * U, t: 0, bad: true }; return; }
+    hopTo(bi);
+  }
+  function lickNearest() {
+    if (state !== 'play' || frog.tongue) return;
+    let bf = null, bd = tongueRange();
+    flies.forEach(f => { if (f.dead) return; const d = dist(f, frog); if (d <= bd) { bd = d; bf = f; } });
+    if (!bf) { sfx.miss(); return; }
+    frog.tongue = { fly: bf, t: 0, tx: bf.x, ty: bf.y };
+    frog.face = Math.atan2(bf.y - frog.y, bf.x - frog.x);
+    sfx.lick();
+  }
+  const DIRS = { ArrowUp: [0, -1], KeyW: [0, -1], ArrowDown: [0, 1], KeyS: [0, 1], ArrowLeft: [-1, 0], KeyA: [-1, 0], ArrowRight: [1, 0], KeyD: [1, 0] };
+  document.addEventListener('keydown', e => {
+    const k = e.code;
+    const onButton = e.target && e.target.tagName === 'BUTTON';
+    if (k === 'Escape' || k === 'KeyP') {
+      if (state === 'play') pause(); else if (state === 'pause') resume();
+      e.preventDefault(); return;
+    }
+    if (k === 'Enter' || k === 'NumpadEnter') {
+      if (onButton && !e.target.closest('.diff, .seg')) return; // let other focused buttons handle it
+      if (state === 'menu' || (state === 'over' && !ui.over.hidden)) start(); else if (state === 'pause') resume();
+      e.preventDefault(); return;
+    }
+    if (state === 'menu' && k === 'KeyM') { setMode(mode === 'classic' ? 'sinking' : 'classic'); return; }
+    if (state === 'menu' && ['Digit1', 'Digit2', 'Digit3'].includes(k)) { setDiff(['easy', 'normal', 'hard'][+k.slice(-1) - 1]); return; }
+    if (state !== 'play') return;
+    if (DIRS[k]) {
+      e.preventDefault(); usingKeys = true;
+      const [dx, dy] = DIRS[k];
+      if (frog.to !== null) queued = { dx, dy }; else hopDir(dx, dy);
+    } else if (k === 'Space') {
+      e.preventDefault(); usingKeys = true; lickNearest();
+    }
+  });
+  cv.addEventListener('pointerdown', e => { e.preventDefault(); usingKeys = false; onTap(e); });
+
+  // ---------- update ----------
+  function update(dt) {
+    time += dt;
+    // difficulty ramps with flies eaten
+    const level = Math.floor(score / 4);
+    snake.speed = (62 * D().snake + (level * 9 + Math.min(time, 120) * 0.15) * D().ramp) * U;
+    snake.len = 16 + score * 1.2;
+    snake.turn = 2.0 + level * 0.12;
+
+    // frog hop
+    if (frog.to !== null) {
+      frog.t += dt / frog.dur;
+      const p = pads[frog.to];
+      const k = Math.min(1, frog.t);
+      const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+      frog.x = frog.from.x + (p.x - frog.from.x) * e;
+      frog.y = frog.from.y + (p.y - frog.from.y) * e;
+      if (frog.t >= 1) {
+        frog.pad = frog.to; frog.to = null; frog.x = p.x; frog.y = p.y; frog.squash = 1; frog.stand = 0;
+        ripples.push({ x: p.x, y: p.y, r: p.r, t: 0 });
+        if (!solid(p)) { if (fallIn()) return; } else collectPowerUp();
+      }
+    }
+    if (updatePads(dt)) return;
+    if (frog.to === null && queued) { const q = queued; queued = null; hopDir(q.dx, q.dy); }
+    updatePowers(dt);
+    frog.squash = Math.max(0, frog.squash - dt * 5);
+    frog.blink -= dt; if (frog.blink < -3.5) frog.blink = 0.12;
+
+    // tongue
+    if (frog.tongue) {
+      const tg = frog.tongue; tg.t += dt / 0.22;
+      if (!tg.fly.dead) { tg.tx = tg.fly.x; tg.ty = tg.fly.y; }
+      if (tg.t >= 0.5 && !tg.fly.dead) {
+        tg.fly.dead = true;
+        const pts = tg.fly.golden ? 5 : 1;
+        score += pts;
+        achOnFly(pts, tg.fly.golden);
+        ui.score.textContent = score;
+        floaters.push({ x: tg.tx, y: tg.ty, t: 0, text: '+' + pts, gold: tg.fly.golden });
+        if (tg.fly.golden) { sfx.gold(); snake.stun = 2.0; } else sfx.gulp();
+        if (score >= nextBonus) {
+          nextBonus += 15;
+          if (lives < MAX_LIVES) {
+            lives++; renderLives();
+            floaters.push({ x: frog.x, y: frog.y - 30 * U, t: 0, text: '+1 \u2665', gold: true });
+          }
+        }
+      }
+      if (tg.t >= 1) frog.tongue = null;
+    }
+
+    // flies
+    flySpawn -= dt;
+    const maxFlies = 3 + Math.min(2, Math.floor(score / 10));
+    if (flySpawn <= 0 && flies.filter(f => !f.dead).length < maxFlies) { spawnFly(); flySpawn = rand(1.0, 2.2); }
+    for (const f of flies) {
+      f.t += dt; f.life -= dt;
+      f.x = f.ax + Math.sin(f.t * 1.7 * f.sp) * 22 * U + Math.sin(f.t * 4.3) * 5;
+      f.y = f.ay + Math.cos(f.t * 1.3 * f.sp) * 14 * U + Math.cos(f.t * 5.1) * 4;
+      f.ax += Math.sin(f.t * 0.4 + f.sp) * 10 * dt;
+    }
+    flies = flies.filter(f => !(f.dead && (!frog.tongue || frog.tongue.fly !== f)) && f.life > 0);
+
+    // snake steering
+    const stunned = snake.stun > 0;
+    if (stunned) snake.stun -= dt;
+    const target = { x: frog.x, y: frog.y };
+    let want = Math.atan2(target.y - snake.y, target.x - snake.x);
+    if (snake.retreat > 0) { snake.retreat -= dt; want += Math.PI; } // swim away after a bite
+    let da = want - snake.a;
+    while (da > Math.PI) da -= Math.PI * 2;
+    while (da < -Math.PI) da += Math.PI * 2;
+    snake.wiggle += dt * 7;
+    const frozen = powers.freeze > 0;
+    const turn = frozen ? 0 : snake.retreat > 0 ? 6 : snake.turn * (stunned ? 0.3 : 1);
+    snake.a += Math.max(-turn * dt, Math.min(turn * dt, da)) + Math.sin(snake.wiggle) * 0.9 * dt;
+    const dToFrog = dist(snake, frog);
+    snake.lunge = dToFrog < 90 * U && frog.to === null ? Math.min(1, snake.lunge + dt * 2) : Math.max(0, snake.lunge - dt * 3);
+    const sp = (frozen ? 0 : snake.speed) * (stunned ? 0.35 : 1) * (1 + snake.lunge * 0.25);
+    if (frozen) snake.a -= Math.sin(snake.wiggle) * 0.9 * dt;
+    snake.x += Math.cos(snake.a) * sp * dt;
+    snake.y += Math.sin(snake.a) * sp * dt;
+    snake.trail.unshift({ x: snake.x, y: snake.y });
+    if (snake.trail.length > 900) snake.trail.length = 900;
+    snake.flick += dt;
+
+    // catch (frog is safe mid-air)
+    const catchR = 20 * U;
+    frog.invuln = Math.max(0, frog.invuln - dt);
+    shake = Math.max(0, shake - dt);
+    if (frog.to === null && dToFrog < catchR && frog.invuln <= 0 && !frozen) {
+      if (useShield()) { frog.invuln = 1.2; snake.retreat = 1.1; snake.stun = 1.6; snake.lunge = 0; return; }
+      lives--; renderLives(); gameHurt = true;
+      if (lives <= 0) return gameOver();
+      loseLife();
+    }
+    // tail-hit near the end of a hop on a body segment also counts? keep it fair: only head.
+
+    // fx
+    ripples.forEach(r => r.t += dt); ripples = ripples.filter(r => r.t < 1);
+    if (Math.random() < dt * 8) ripples.push({ x: snake.x, y: snake.y, r: 6 * U, t: 0.3, small: true });
+    floaters.forEach(f => f.t += dt); floaters = floaters.filter(f => f.t < 0.9);
+    if (tapRing) { tapRing.t += dt; if (tapRing.t > 0.4) tapRing = null; }
+    particles.forEach(p => { p.t += dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 300 * dt; });
+    particles = particles.filter(p => p.t < p.life);
+  }
+
+  // ---------- sinking pads ----------
+  // up -> warn (shakes, 1.6s) -> down (0.5s) -> gone (3-5s) -> rise (0.6s) -> up
+  function startSink(p, warnTime) { p.state = 'warn'; p.st = (warnTime || 1.6) * D().warn; }
+  function updatePads(dt) {
+    if (mode !== 'sinking') return false;
+    const level = Math.floor(score / 4);
+    // pick random pads to sink, more often as you score
+    sinkTimer -= dt;
+    const sinking = pads.filter(p => !solid(p) || p.state === 'warn').length;
+    const maxSinking = Math.min(Math.floor(pads.length * 0.35), 2 + Math.floor(level / 2));
+    if (sinkTimer <= 0 && sinking < maxSinking) {
+      const options = pads.filter((p, i) => p.state === 'up' && i !== frog.pad && i !== frog.to);
+      if (options.length) startSink(options[Math.floor(Math.random() * options.length)]);
+      sinkTimer = rand(1.4, 2.8) / (1 + level * 0.12) / D().sink;
+    }
+    // standing still too long sinks your own pad
+    if (frog.to === null) {
+      frog.stand += dt;
+      const cur = pads[frog.pad];
+      if (frog.stand > 4 && cur.state === 'up') startSink(cur, 1.4);
+    }
+    for (let i = 0; i < pads.length; i++) {
+      const p = pads[i];
+      if (p.state === 'warn') {
+        p.st -= dt;
+        if (Math.random() < dt * 6) ripples.push({ x: p.x + rand(-p.r, p.r) * 0.7, y: p.y + rand(-p.r, p.r) * 0.7, r: 3 * U, t: 0.4, small: true });
+        if (p.st <= 0) { p.state = 'down'; p.st = 0.5; }
+      } else if (p.state === 'down') {
+        p.st -= dt; p.s = Math.max(0, p.st / 0.5);
+        if (p.st <= 0) {
+          p.state = 'gone'; p.s = 0; p.st = rand(3, 5);
+          ripples.push({ x: p.x, y: p.y, r: p.r * 0.6, t: 0 });
+          if (frog.to === null && frog.pad === i) { if (fallIn()) return true; }
+        }
+      } else if (p.state === 'gone') {
+        p.st -= dt;
+        if (p.st <= 0) { p.state = 'rise'; p.st = 0.6; }
+      } else if (p.state === 'rise') {
+        p.st -= dt; p.s = 1 - Math.max(0, p.st / 0.6);
+        if (p.st <= 0) { p.state = 'up'; p.s = 1; }
+      }
+    }
+    return false;
+  }
+  // frog falls in the water: lose a life, then scramble to the nearest pad. Returns true on game over.
+  function fallIn() {
+    sfx.splash();
+    for (let k = 0; k < 3; k++) ripples.push({ x: frog.x, y: frog.y, r: 8 * U + k * 10 * U, t: k * 0.15 });
+    for (let k = 0; k < 14; k++) particles.push({ x: frog.x, y: frog.y, vx: rand(-110, 110), vy: rand(-220, -80), t: 0, life: rand(0.4, 0.8), water: true });
+    if (useShield()) frog.invuln = 1.2;
+    else {
+      lives--; renderLives(); gameHurt = true;
+      if (lives <= 0) { gameOver('splash'); return true; }
+      frog.invuln = 2.2; shake = 0.25;
+      floaters.push({ x: frog.x, y: frog.y - 30 * U, t: 0, text: 'Splash! -1 \u2665', hurt: true });
+    }
+    let bi = -1, bd = Infinity;
+    pads.forEach((p, i) => { if (p.state === 'up') { const d = dist(p, frog); if (d < bd) { bd = d; bi = i; } } });
+    if (bi < 0) { bi = frog.pad; const p = pads[bi]; p.state = 'up'; p.s = 1; }
+    frog.from = { x: frog.x, y: frog.y }; frog.to = bi; frog.t = 0; frog.stand = 0;
+    frog.face = Math.atan2(pads[bi].y - frog.y, pads[bi].x - frog.x);
+    return false;
+  }
+
+  function renderLives() {
+    let h = '';
+    for (let i = 0; i < Math.max(D().lives, lives); i++) h += i < lives ? '\u2665' : '<span class="empty">\u2665</span>';
+    ui.lives.innerHTML = h;
+    ui.lives.setAttribute('aria-label', lives + (lives === 1 ? ' life' : ' lives'));
+  }
+
+  function loseLife() {
+    frog.invuln = 2.2;
+    snake.retreat = 1.1; snake.stun = 1.6; snake.lunge = 0;
+    shake = 0.3;
+    sfx.hurt();
+    floaters.push({ x: frog.x, y: frog.y - 30 * U, t: 0, text: '-1 \u2665', hurt: true });
+    for (let i = 0; i < 12; i++) particles.push({ x: frog.x, y: frog.y, vx: rand(-120, 120), vy: rand(-200, -60), t: 0, life: rand(0.4, 0.7), hurt: true });
+  }
+
+  function gameOver(cause) {
+    state = 'over';
+    $('overTitle').textContent = cause === 'splash' ? 'Splash!' : 'Gulp!';
+    $('overMsg').textContent = cause === 'splash' ? 'Your last lily pad sank.' : 'The snake took your last life.';
+    sfx.over();
+    shake = 0.4;
+    for (let i = 0; i < 24; i++) particles.push({ x: frog.x, y: frog.y, vx: rand(-160, 160), vy: rand(-260, -60), t: 0, life: rand(0.5, 1) });
+    const newBest = score > best;
+    if (newBest) { best = score; save(bestKey(diff), best); }
+    ui.final.textContent = score;
+    lbSubmit(score);
+    ui.finalNote.textContent = (newBest && score > 0 ? 'flies eaten. New best!' : (score === 1 ? 'fly eaten' : 'flies eaten') + ' · best ' + best) + ' · ' + MODES[mode].label + ' · ' + D().label;
+    setTimeout(() => { ui.hud.hidden = true; ui.over.hidden = false; }, 700);
+  }
+
+  // ---------- draw ----------
+  function drawWater() {
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, '#0b2d36'); g.addColorStop(1, '#134b55');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    // slow caustic streaks
+    ctx.save(); ctx.globalAlpha = 0.06; ctx.strokeStyle = '#bfefff'; ctx.lineWidth = 2;
+    const t = performance.now() / 1000;
+    for (let i = 0; i < 9; i++) {
+      const y = (i / 9) * H + Math.sin(t * 0.3 + i) * 12;
+      ctx.beginPath();
+      for (let x = 0; x <= W; x += 20) ctx.lineTo(x, y + Math.sin(x * 0.02 + t * 0.8 + i) * 6);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawPad(p, t) {
+    const sc = p.s === undefined ? 1 : p.s;
+    if (sc <= 0.02) {
+      // submerged: faint shadow and bubbles where the pad was
+      ctx.fillStyle = 'rgba(40,90,60,0.25)';
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r * 0.8, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(200,240,255,0.35)';
+      for (let k = 0; k < 3; k++) { const ph = (t * 0.8 + k / 3 + p.bob) % 1; ctx.beginPath(); ctx.arc(p.x + Math.sin(k * 2.1 + p.bob) * p.r * 0.4, p.y - ph * 10, 2 + ph * 2, 0, Math.PI * 2); ctx.fill(); }
+      return;
+    }
+    const warn = p.state === 'warn';
+    const bob = Math.sin(t * 1.5 + p.bob) * 1.5;
+    const jig = warn ? (1 - p.st / 1.6) * 3.5 + 1 : 0;
+    ctx.save(); ctx.translate(p.x + rand(-jig, jig), p.y + bob + rand(-jig, jig)); ctx.rotate(p.rot + Math.sin(t * 0.5 + p.bob) * 0.05);
+    ctx.scale(sc, sc); ctx.globalAlpha = Math.min(1, 0.3 + sc);
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    ctx.beginPath(); ctx.ellipse(3, 6, p.r, p.r * 0.92, 0, 0.35, Math.PI * 2 - 0.05); ctx.lineTo(0, 0); ctx.fill();
+    ctx.fillStyle = warn && Math.sin(t * (10 + (1.6 - p.st) * 14)) > -0.2 ? '#b5a945' : (p.state === 'down' || p.state === 'rise') ? '#4f8f43' : '#5fae4e';
+    ctx.beginPath(); ctx.arc(0, 0, p.r, 0.35, Math.PI * 2 - 0.05); ctx.lineTo(0, 0); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#4b9440'; ctx.lineWidth = 1.5;
+    for (let i = 0; i < 7; i++) { const a = 0.6 + i * 0.8; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(a) * p.r * 0.85, Math.sin(a) * p.r * 0.85); ctx.stroke(); }
+    ctx.fillStyle = '#7cc864'; ctx.beginPath(); ctx.arc(-p.r * 0.25, -p.r * 0.3, p.r * 0.35, 0, Math.PI * 2); ctx.globalAlpha = 0.35; ctx.fill();
+    ctx.restore();
+  }
+
+  function drawFrog(t) {
+    if (frog.invuln > 0 && Math.sin(t * 28) > 0.2) return;
+    let lift = 0, scale = 1;
+    if (frog.to !== null) { const k = Math.min(1, frog.t); lift = Math.sin(k * Math.PI) * 26 * U; scale = 1 + Math.sin(k * Math.PI) * 0.25; }
+    const s = 15 * U * scale;
+    // shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath(); ctx.ellipse(frog.x, frog.y + 4, s * 1.1 / scale, s * 0.8 / scale, 0, 0, Math.PI * 2); ctx.fill();
+
+    // tongue (drawn from mouth)
+    const fx = frog.x, fy = frog.y - lift;
+    if (frog.tongue) {
+      const k = frog.tongue.t < 0.5 ? frog.tongue.t * 2 : (1 - frog.tongue.t) * 2;
+      const mx = fx + Math.cos(frog.face) * s * 0.9, my = fy + Math.sin(frog.face) * s * 0.9;
+      const ex = mx + (frog.tongue.tx - mx) * k, ey = my + (frog.tongue.ty - my) * k;
+      ctx.strokeStyle = '#ff6f91'; ctx.lineWidth = 5 * U; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(mx, my); ctx.lineTo(ex, ey); ctx.stroke();
+      ctx.fillStyle = '#ff6f91'; ctx.beginPath(); ctx.arc(ex, ey, 5 * U, 0, Math.PI * 2); ctx.fill();
+    }
+
+    ctx.save(); ctx.translate(fx, fy); ctx.rotate(frog.face + Math.PI / 2);
+    const sq = 1 + frog.squash * 0.25;
+    ctx.scale(sq, 1 / sq);
+    // back legs
+    ctx.fillStyle = '#6fbf3f';
+    const legOut = frog.to !== null ? 1.5 : 1;
+    ctx.beginPath(); ctx.ellipse(-s * 0.95, s * 0.55 * legOut, s * 0.45, s * 0.7 * legOut, -0.5, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(s * 0.95, s * 0.55 * legOut, s * 0.45, s * 0.7 * legOut, 0.5, 0, Math.PI * 2); ctx.fill();
+    // body
+    ctx.fillStyle = '#9be15d';
+    ctx.beginPath(); ctx.ellipse(0, 0, s, s * 1.12, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#c9f29a';
+    ctx.beginPath(); ctx.ellipse(0, s * 0.2, s * 0.55, s * 0.6, 0, 0, Math.PI * 2); ctx.fill();
+    // spots
+    ctx.fillStyle = '#6fbf3f';
+    [[-0.45, 0.35, 0.16], [0.5, 0.1, 0.12], [0.1, 0.65, 0.1]].forEach(([x, y, r]) => { ctx.beginPath(); ctx.arc(x * s, y * s, r * s, 0, Math.PI * 2); ctx.fill(); });
+    // eyes
+    const blink = frog.blink > 0;
+    [-1, 1].forEach(side => {
+      ctx.fillStyle = '#9be15d'; ctx.beginPath(); ctx.arc(side * s * 0.5, -s * 0.85, s * 0.42, 0, Math.PI * 2); ctx.fill();
+      if (blink) { ctx.strokeStyle = '#2d6a2a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(side * s * 0.5 - s * 0.25, -s * 0.85); ctx.lineTo(side * s * 0.5 + s * 0.25, -s * 0.85); ctx.stroke(); }
+      else {
+        ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(side * s * 0.5, -s * 0.88, s * 0.3, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(side * s * 0.5, -s * 0.95, s * 0.16, 0, Math.PI * 2); ctx.fill();
+      }
+    });
+    ctx.restore();
+  }
+
+  function drawSnake(t) {
+    // sample trail at fixed spacing
+    const spacing = 7 * U;
+    const pts = [snake.trail[0]];
+    let acc = 0;
+    for (let i = 1; i < snake.trail.length && pts.length < snake.len; i++) {
+      acc += dist(snake.trail[i], snake.trail[i - 1]);
+      if (acc >= spacing) { pts.push(snake.trail[i]); acc = 0; }
+    }
+    const n = pts.length;
+    const w0 = 13 * U;
+    // body, tail to head
+    for (let i = n - 1; i >= 0; i--) {
+      const k = i / Math.max(1, n - 1);
+      const w = w0 * (1 - k * 0.75);
+      ctx.fillStyle = i % 4 < 2 ? '#e0a13a' : '#7a4a1c';
+      if (powers.freeze > 0) ctx.fillStyle = i % 4 < 2 ? '#bfe9f5' : '#6f9fb0';
+      else if (snake.stun > 0) ctx.fillStyle = i % 4 < 2 ? '#c9b98a' : '#6d6450';
+      ctx.beginPath(); ctx.arc(pts[i].x, pts[i].y, w, 0, Math.PI * 2); ctx.fill();
+    }
+    // head
+    ctx.save(); ctx.translate(snake.x, snake.y); ctx.rotate(snake.a);
+    const hw = w0 * 1.25;
+    ctx.fillStyle = powers.freeze > 0 ? '#bfe9f5' : snake.stun > 0 ? '#c9b98a' : '#e0a13a';
+    ctx.beginPath(); ctx.ellipse(hw * 0.3, 0, hw * 1.15, hw * 0.9, 0, 0, Math.PI * 2); ctx.fill();
+    // tongue flicks
+    if (Math.sin(snake.flick * 6) > 0.3 || snake.lunge > 0.5) {
+      ctx.strokeStyle = '#ff3b3b'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+      const L = hw * 1.9;
+      ctx.beginPath(); ctx.moveTo(hw * 1.3, 0); ctx.lineTo(L, 0); ctx.lineTo(L + 6, -4); ctx.moveTo(L, 0); ctx.lineTo(L + 6, 4); ctx.stroke();
+    }
+    // eyes
+    [-1, 1].forEach(side => {
+      ctx.fillStyle = '#fff6c2'; ctx.beginPath(); ctx.arc(hw * 0.6, side * hw * 0.5, hw * 0.28, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#111'; ctx.beginPath(); ctx.ellipse(hw * 0.65, side * hw * 0.5, hw * 0.07, hw * 0.22, 0, 0, Math.PI * 2); ctx.fill();
+    });
+    ctx.restore();
+  }
+
+  function drawFly(f, t) {
+    const s = (f.golden ? 7 : 5.5) * U;
+    const fade = f.life < 1.5 ? (Math.sin(t * 20) > 0 ? 1 : 0.4) : 1;
+    ctx.save(); ctx.globalAlpha = fade; ctx.translate(f.x, f.y);
+    // wings
+    const flap = Math.sin(t * 60) * 0.5 + 0.5;
+    ctx.fillStyle = f.golden ? 'rgba(255,230,140,0.8)' : 'rgba(210,235,255,0.75)';
+    ctx.beginPath(); ctx.ellipse(-s * 0.9, -s * 0.5, s * 1.1, s * (0.4 + flap * 0.4), -0.5, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(s * 0.9, -s * 0.5, s * 1.1, s * (0.4 + flap * 0.4), 0.5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = f.golden ? '#ffc93c' : '#1d1d1d';
+    ctx.beginPath(); ctx.ellipse(0, 0, s * 0.7, s, 0, 0, Math.PI * 2); ctx.fill();
+    if (f.golden) { ctx.globalAlpha = 0.25 * fade; ctx.fillStyle = '#ffe58a'; ctx.beginPath(); ctx.arc(0, 0, s * 3, 0, Math.PI * 2); ctx.fill(); }
+    ctx.restore();
+  }
+
+  function draw() {
+    const t = performance.now() / 1000;
+    ctx.save();
+    if (shake > 0) ctx.translate(rand(-6, 6) * shake, rand(-6, 6) * shake);
+    drawWater();
+    // ripples
+    ripples.forEach(r => {
+      ctx.strokeStyle = `rgba(200,240,255,${(1 - r.t) * (r.small ? 0.25 : 0.5)})`; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(r.x, r.y, r.r + r.t * (r.small ? 18 : 40) * U, 0, Math.PI * 2); ctx.stroke();
+    });
+    // hop range hint
+    if (state === 'play' && frog.to === null) {
+      ctx.strokeStyle = 'rgba(155,225,93,0.12)'; ctx.setLineDash([6, 8]); ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(frog.x, frog.y, hopRange(), 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+    }
+    pads.forEach((p, i) => {
+      drawPad(p, t);
+      if (state === 'play' && frog.to === null && i !== frog.pad && solid(p) && dist(p, frog) <= hopRange()) {
+        ctx.strokeStyle = 'rgba(244,251,233,0.35)'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.r + 4, 0, Math.PI * 2); ctx.stroke();
+      }
+    });
+    if (pickup && state !== 'menu') {
+      const p = pads[pickup.pad];
+      const blinkOut = pickup.life < 2 && Math.sin(t * 20) > 0;
+      const pulse = 1 + Math.sin(t * 5) * 0.08;
+      ctx.save(); ctx.globalAlpha = 0.35; ctx.fillStyle = POWER[pickup.type].color;
+      ctx.beginPath(); ctx.arc(p.x, p.y, 22 * U * pulse, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+      drawBadge(pickup.type, p.x, p.y - 4 + Math.sin(t * 3) * 3, 14 * U * pulse, blinkOut ? 0.35 : 1);
+    }
+    if (state !== 'menu') drawSnake(t);
+    if (state !== 'menu' && !(state === 'over' && shake <= 0.01)) drawFrog(t);
+    else if (state === 'menu') {
+      // idle frog on the menu
+      if (frog) drawFrog(t);
+    }
+    if (state !== 'menu' && state !== 'over' && powers.shield > 0) {
+      const a = powers.shield < 2 && Math.sin(t * 18) > 0 ? 0.25 : 0.6;
+      ctx.strokeStyle = `rgba(94,200,255,${a})`; ctx.fillStyle = `rgba(94,200,255,${a * 0.25})`; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(frog.x, frog.y - (frog.to !== null ? Math.sin(Math.min(1, frog.t) * Math.PI) * 26 * U : 0), 27 * U, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    }
+    flies.forEach(f => { if (!f.dead) drawFly(f, t); });
+    if (usingKeys && state === 'play') {
+      // keyboard players: mark flies that Space would catch
+      ctx.strokeStyle = 'rgba(255,111,145,0.75)'; ctx.lineWidth = 2;
+      flies.forEach(f => { if (!f.dead && dist(f, frog) <= tongueRange()) { ctx.beginPath(); ctx.arc(f.x, f.y, 15 * U, 0, Math.PI * 2); ctx.stroke(); } });
+    }
+    // active power-up tray under the pause button
+    if (state === 'play' || state === 'pause') {
+      const active = Object.keys(powers).filter(k => powers[k] > 0);
+      const r = 13, gap = 16, y = 88;
+      let x = W / 2 - (active.length * (r * 2 + gap) - gap) / 2 + r;
+      active.forEach(k => {
+        drawBadge(k, x, y, r, powers[k] < 2 && Math.sin(t * 18) > 0 ? 0.4 : 1);
+        ctx.strokeStyle = POWER[k].color; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(x, y, r + 4, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (powers[k] / POWER[k].time)); ctx.stroke();
+        x += r * 2 + gap;
+      });
+    }
+    if (tapRing) {
+      ctx.strokeStyle = tapRing.bad ? `rgba(255,107,91,${1 - tapRing.t / 0.4})` : `rgba(244,251,233,${1 - tapRing.t / 0.4})`;
+      ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(tapRing.x, tapRing.y, 20 * U + tapRing.t * 50, 0, Math.PI * 2); ctx.stroke();
+    }
+    floaters.forEach(f => {
+      ctx.globalAlpha = 1 - f.t / 0.9;
+      ctx.fillStyle = f.color ? f.color : f.hurt ? '#ff6b5b' : f.gold ? '#ffd65a' : '#f4fbe9';
+      ctx.font = `${Math.round(24 * U)}px "Lilita One", system-ui, sans-serif`; ctx.textAlign = 'center';
+      ctx.fillText(f.text, f.x, f.y - f.t * 40);
+      ctx.globalAlpha = 1;
+    });
+    particles.forEach(p => { ctx.globalAlpha = p.color ? Math.max(0, 1 - p.t / p.life) : 1; ctx.fillStyle = p.color ? p.color : p.speed ? `rgba(255,210,63,${0.6 * (1 - p.t / p.life)})` : p.water ? `rgba(190,235,255,${1 - p.t / p.life})` : p.hurt ? `rgba(255,107,91,${1 - p.t / p.life})` : `rgba(155,225,93,${1 - p.t / p.life})`; ctx.beginPath(); ctx.arc(p.x, p.y, 4 * U, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; });
+    ctx.restore();
+  }
+
+  // ---------- loop ----------
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    if (state === 'play') update(dt);
+    else if (state === 'over') {
+      shake = Math.max(0, shake - dt);
+      particles.forEach(p => { p.t += dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 300 * dt; });
+      particles = particles.filter(p => p.t < p.life);
+    }
+    draw();
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- screens ----------
+  function start() {
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    reset();
+    state = 'play';
+    ui.menu.hidden = true; ui.over.hidden = true; ui.paused.hidden = true; ui.hud.hidden = false;
+    try { if (actx && actx.state === 'suspended') actx.resume(); } catch (e) {}
+    try { navigator.wakeLock && navigator.wakeLock.request('screen').catch(() => {}); } catch (e) {}
+  }
+  function pause() { if (state !== 'play') return; state = 'pause'; ui.paused.hidden = false; }
+  function resume() { if (state !== 'pause') return; state = 'play'; ui.paused.hidden = true; last = performance.now(); }
+  function toMenu() {
+    state = 'menu'; ui.paused.hidden = true; ui.over.hidden = true; ui.hud.hidden = true; ui.menu.hidden = false;
+    showMenuBest(); reset();
+  }
+  function showMenuBest() {
+    ui.menuBest.textContent = best > 0 ? `Your best (${MODES[mode].label}, ${D().label}): ${best} ${best === 1 ? 'fly' : 'flies'}` : '';
+    $('diffNote').textContent = D().note + (mode === 'sinking' ? { easy: ', pads sink less often', normal: '', hard: ', pads sink more often' }[diff] : '');
+    $('tagline').textContent = MODES[mode].tagline;
+    $('ruleSink').hidden = mode !== 'sinking';
+    document.querySelectorAll('.seg button').forEach(b => b.setAttribute('aria-checked', String(b.dataset.m === mode)));
+    document.querySelectorAll('.diff button').forEach(b => b.setAttribute('aria-checked', String(b.dataset.d === diff)));
+  }
+  function setDiff(d) {
+    if (!DIFFS[d] || state !== 'menu') return;
+    diff = d; save('lilyleap.diff', diff);
+    best = load(bestKey(diff), 0); ui.best.textContent = best;
+    showMenuBest();
+  }
+  document.querySelectorAll('.diff button').forEach(b => b.addEventListener('click', () => setDiff(b.dataset.d)));
+  function setMode(m) {
+    if (!MODES[m] || state !== 'menu') return;
+    mode = m; save('lilyleap.mode', mode);
+    best = load(bestKey(diff), 0); ui.best.textContent = best;
+    showMenuBest(); reset();
+  }
+  document.querySelectorAll('.seg button').forEach(b => b.addEventListener('click', () => setMode(b.dataset.m)));
+  function syncSound() { ui.sound.textContent = 'Sound: ' + (soundOn ? 'on' : 'off'); }
+
+  $('playBtn').addEventListener('click', start);
+  $('againBtn').addEventListener('click', start);
+  $('pauseBtn').addEventListener('click', pause);
+  $('resumeBtn').addEventListener('click', resume);
+  $('quitBtn').addEventListener('click', toMenu);
+  ui.sound.addEventListener('click', () => { soundOn = !soundOn; save('lilyleap.sound', soundOn); syncSound(); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
+
+  // ---------- native app (Capacitor) ----------
+  // Only active inside the Android/iOS app; does nothing in a normal browser.
+  try {
+    const Cap = window.Capacitor;
+    const CapApp = Cap && Cap.isNativePlatform && Cap.isNativePlatform()
+      ? ((Cap.Plugins && Cap.Plugins.App) || (Cap.registerPlugin && Cap.registerPlugin('App')))
+      : null;
+    if (CapApp) {
+      // Android back button: pause a running game, back out of menus, exit from the main menu
+      CapApp.addListener('backButton', () => {
+        if (state === 'play') pause();
+        else if (state === 'pause' || state === 'over') toMenu();
+        else CapApp.exitApp();
+      });
+      CapApp.addListener('pause', () => pause());
+    }
+  } catch (e) {}
+
+  // ---------- achievements (tracked on every device) ----------
+  // Progress is kept on the device; each achievement is a one-time unlock, so re-sending is harmless.
+  const ACH = {
+    first_fly:     { name: 'First Bite' },
+    golden_fly:    { name: 'Gold Rush' },
+    belly_25:      { name: 'Full Belly' },
+    belly_50:      { name: 'Bottomless Belly' },
+    collector_500: { name: 'Fly Collector' },
+    power_trip:    { name: 'Power Trip' },
+    shield_block:  { name: 'Not Today' },
+    untouchable:   { name: 'Untouchable' },
+    lily_hopper:   { name: 'Lily Hopper' },
+    snake_charmer: { name: 'Snake Charmer' },
+  };
+  let gameHurt = false;
+  const achDone = load('lilyleap.ach', {}) || {};
+  const achStats = Object.assign({ total: 0, powers: {} }, load('lilyleap.achStats', {}) || {});
+  function achUnlock(k) {
+    if (!ACH[k] || achDone[k]) return;
+    achDone[k] = true; save('lilyleap.ach', achDone);
+    toast('Achievement unlocked: ' + ACH[k].name);
+    gsUnlock(k);
+  }
+  function achOnFly(pts, golden) {
+    achStats.total += pts; save('lilyleap.achStats', achStats);
+    achUnlock('first_fly');
+    if (golden) achUnlock('golden_fly');
+    if (score >= 25) achUnlock('belly_25');
+    if (score >= 50) achUnlock('belly_50');
+    if (achStats.total >= 500) achUnlock('collector_500');
+    if (score >= 15 && !gameHurt) achUnlock('untouchable');
+    if (mode === 'sinking' && score >= 20) achUnlock('lily_hopper');
+    if (diff === 'hard' && score >= 15) achUnlock('snake_charmer');
+  }
+  function achOnPower(type) {
+    achStats.powers[type] = true; save('lilyleap.achStats', achStats);
+    if (Object.keys(POWER).every(t => achStats.powers[t])) achUnlock('power_trip');
+  }
+
+  // ---------- online leaderboards and achievements (store app only) ----------
+  // Google Play Games (Android) / Game Center (iOS) via @idleflowgames/capacitor-play-games.
+  // Off in web browsers, and off in the app until IDs are filled in www/game-services.js.
+  // short messages at the bottom of the screen, shown one after another
+  const toastQ = [];
+  let toastBusy = false;
+  function toast(msg) {
+    if (toastQ.length < 5 && !toastQ.includes(msg)) toastQ.push(msg);
+    if (!toastBusy) toastNext();
+  }
+  function toastNext() {
+    const el = $('toast');
+    if (!toastQ.length) { el.hidden = true; toastBusy = false; return; }
+    toastBusy = true; el.textContent = toastQ.shift(); el.hidden = false;
+    setTimeout(toastNext, 2600);
+  }
+  const GS = (() => {
+    try {
+      const Cap = window.Capacitor;
+      if (!Cap || !Cap.isNativePlatform || !Cap.isNativePlatform()) return null;
+      const platform = Cap.getPlatform();
+      const lb = (window.LILY_LEAP_LEADERBOARDS || {})[platform] || {};
+      const ach = (window.LILY_LEAP_ACHIEVEMENTS || {})[platform] || {};
+      const hasLb = Object.values(lb).some(Boolean), hasAch = Object.values(ach).some(Boolean);
+      if (!hasLb && !hasAch) return null;
+      const PG = (Cap.registerPlugin && Cap.registerPlugin('PlayGames')) || (Cap.Plugins && Cap.Plugins.PlayGames);
+      if (!PG) return null;
+      return { PG, lb, ach, hasLb, hasAch, name: platform === 'ios' ? 'Game Center' : 'Google Play Games', signedIn: false };
+    } catch (e) { return null; }
+  })();
+  function gsSetSignedIn(v) {
+    const was = GS.signedIn; GS.signedIn = v;
+    if (!v || was) return;
+    // on every fresh sign-in, send what this device has earned (covers play while offline or signed out)
+    for (const m in MODES) for (const d in DIFFS) {
+      const id = GS.lb[m + '.' + d], b = load('lilyleap.best.' + m + '.' + d, 0);
+      if (id && b > 0) GS.PG.submitScore({ leaderboardId: id, score: b }).catch(() => {});
+    }
+    for (const k in achDone) gsUnlock(k);
+  }
+  function gsUnlock(k) {
+    if (!GS || !GS.signedIn) return;
+    const id = GS.ach[k];
+    if (id) GS.PG.unlockAchievement({ id }).catch(() => {});
+  }
+  function lbSubmit(n) {
+    if (!GS || !GS.signedIn || n <= 0) return;
+    const id = GS.lb[mode + '.' + diff];
+    if (id) GS.PG.submitScore({ leaderboardId: id, score: n }).catch(() => {});
+  }
+  async function gsEnsureSignedIn(what) {
+    if (GS.signedIn) return true;
+    const r = await GS.PG.signIn({ silent: false });
+    gsSetSignedIn(!!(r && r.signedIn));
+    if (!GS.signedIn) toast(`Sign in to ${GS.name} to see ${what}.`);
+    return GS.signedIn;
+  }
+  async function lbShow() {
+    try {
+      if (!(await gsEnsureSignedIn('the leaderboard'))) return;
+      const id = GS.lb[mode + '.' + diff];
+      if (id) await GS.PG.showLeaderboard({ leaderboardId: id }); else await GS.PG.showAllLeaderboards();
+    } catch (e) { toast(`${GS.name} isn't available right now. Check your connection and try again.`); }
+  }
+  async function achShow() {
+    try {
+      if (!(await gsEnsureSignedIn('your achievements'))) return;
+      await GS.PG.showAchievements();
+    } catch (e) { toast(`${GS.name} isn't available right now. Check your connection and try again.`); }
+  }
+  if (GS) {
+    document.querySelectorAll('[data-gs]').forEach(row => { row.hidden = false; });
+    document.querySelectorAll('[data-lb]').forEach(b => { b.hidden = !GS.hasLb; b.addEventListener('click', lbShow); });
+    document.querySelectorAll('[data-ach]').forEach(b => { b.hidden = !GS.hasAch; b.addEventListener('click', achShow); });
+    (async () => {
+      try {
+        await GS.PG.initialize();
+        if (GS.PG.addListener) GS.PG.addListener('signInStateChanged', e => gsSetSignedIn(!!(e && e.signedIn)));
+        const r = await GS.PG.signIn({ silent: true });
+        gsSetSignedIn(!!(r && r.signedIn));
+      } catch (e) {}
+    })();
+  }
+  window.addEventListener('resize', resize);
+
+  resize(); reset(); showMenuBest(); syncSound();
+  requestAnimationFrame(frame);
+})();
+</script>
+<script>
+  // offline support (needs https or localhost)
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  }
+</script>
+</body>
+</html>
