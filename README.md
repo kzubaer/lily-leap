@@ -15,4 +15,6 @@ A frog-and-snake pond game: hop across lily pads, catch flies with your tongue, 
 
 On iPhone or iPad, open the link in Safari and choose **Share → Add to Home Screen** to get an app icon. The game then opens full screen and works offline.
 
+Privacy policy: https://kzubaer.github.io/lily-leap/privacy-policy.html
+
 Fonts: Lilita One and Nunito, under the SIL Open Font License (see `fonts/`).
